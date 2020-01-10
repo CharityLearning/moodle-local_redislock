@@ -130,7 +130,7 @@ class redis_lock_factory implements lock_factory {
      * @param int    $maxlifetime The number of seconds to wait before reclaiming a stale lock.
      * @return lock|boolean An instance of \core\lock\lock if the lock was obtained, or false.
      */
-    public function get_lock($resource, $timeout, $maxlifetime = 86400) {
+    public function get_lock($resource, $timeout, $maxlifetime = 14400) {
         global $CFG;
         $giveuptime = time() + $timeout;
 
@@ -148,19 +148,13 @@ class redis_lock_factory implements lock_factory {
         $locked = false;
         do {
             $now = time();
-            try {
+            if ($locked = $this->redis->setnx($resource, $this->get_lock_value())) {
+                $this->redis->expire($resource, $maxlifetime);
+            } else {
                 $locked = $this->redis->setnx($resource, $this->get_lock_value());
-                $exception = false;
-            } catch (\RedisException $e) {
-                // If there has been a redis exception, we will try to reconnect.
-                $exception = $e;
-                $this->log("Got exception while trying to get lock: {$e->getMessage()}");
-                $this->log("Attempting to reconnect to Redis");
-                $this->redis = $this->bootstrap_redis();
-            }
-
-            if (!$locked && $timeout !== 0) {
-                usleep(rand(500000, 1000000)); // Sleep between 0.5 and 1 second.
+                if (!$locked) {
+                    usleep(rand(10000, 250000)); // Sleep between 10 and 250 milliseconds.
+                }
             }
         } while (!$locked && $now < $giveuptime);
 
@@ -251,8 +245,15 @@ class redis_lock_factory implements lock_factory {
      * @param int  $maxlifetime new max time to hold the lock.
      * @return boolean True if the lock was extended.
      */
-    public function extend_lock(lock $lock, $maxlifetime = 86400) {
-        return false;
+    public function extend_lock(lock $lock, $maxlifetime = 14400) {
+        $resource = $lock->get_key();
+        $extended = false;
+        if ($value = $this->redis->get($resource)) {
+            if ($value == $this->get_lock_value()) {
+                $extended = $this->redis->expire($resource, $maxlifetime);
+            }
+        }
+        return $extended;
     }
 
     /**

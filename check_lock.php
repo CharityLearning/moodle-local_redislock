@@ -56,7 +56,7 @@ $tbody = '';
 foreach ($list as $key) {
     $row = \html_writer::tag('td', $key);
     $row .= \html_writer::tag('td', $redisClient->get($key));
-    $row .= \html_writer::tag('td', $redisClient->pttl($key))));
+    $row .= \html_writer::tag('td', $redisClient->pttl($key));
     $link = \html_writer::link(new \moodle_url($CFG->wwwroot.'/local/redislock/check_lock.php', array('key' => $key)), 'Delete');
     $row .= \html_writer::tag('td', $link);
     $tbody .= \html_writer::tag('tr', $row);

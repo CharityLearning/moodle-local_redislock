@@ -188,7 +188,10 @@ class redis_lock_factory implements lock_factory {
         do {
             $now = time();
             try {
-                $locked = $this->redis->setnx($resource, $this->get_lock_value());
+i               if ($maxlifetime > 7200) {
+                    $maxlifetime = 7200;
+                }
+                $locked = $this->redis->set($resource, $this->get_lock_value(), ['nx', 'ex' => $maxlifetime]);
                 $exception = false;
             } catch (\RedisException $e) {
                 // If there has been a redis exception, we will try to reconnect.
